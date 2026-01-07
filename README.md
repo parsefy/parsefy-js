@@ -81,13 +81,9 @@ const { object, metadata, error } = await client.extract({
   schema,
 });
 
-if (error) {
-  console.error(`Error: [${error.code}] ${error.message}`);
-} else {
-  console.log('Extracted:', object);
-  console.log(`Processed in ${metadata.processingTimeMs}ms`);
-  console.log(`Credits used: ${metadata.credits}`);
-}
+if (!error) {
+  console.log(object);
+} 
 ```
 
 ### File Input Options
