@@ -1,6 +1,6 @@
 {
   "name": "parsefy",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Official TypeScript SDK for Parsefy - AI-powered document data extraction",
   "author": "",
   "license": "MIT",
