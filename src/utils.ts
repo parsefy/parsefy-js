@@ -20,13 +20,38 @@ export function isNode(): boolean {
 /**
  * Converts a Zod schema to JSON Schema format for the API.
  * Preserves .describe() annotations which guide the AI extraction.
+ *
+ * **Important**: All fields are required by default in the generated JSON Schema.
+ * Use `.optional()` on fields that may not appear in all documents to avoid
+ * triggering expensive fallback models unnecessarily.
+ *
+ * @example
+ * ```ts
+ * const schema = z.object({
+ *   // REQUIRED - Will trigger fallback if below confidence threshold
+ *   invoice_number: z.string(),
+ *   total: z.number(),
+ *
+ *   // OPTIONAL - Won't trigger fallback if missing or low confidence
+ *   vendor: z.string().optional(),
+ *   notes: z.string().optional(),
+ * });
+ * ```
+ *
  * @internal
  */
 export function zodSchemaToJsonSchema(schema: z.ZodType): Record<string, unknown> {
-  return zodToJsonSchema(schema, {
+  const jsonSchema = zodToJsonSchema(schema, {
     $refStrategy: 'none',
-    target: 'openApi3',
+    target: 'jsonSchema7',
   }) as Record<string, unknown>;
+
+  // Remove $schema URL as some APIs find it strict/unnecessary
+  if ('$schema' in jsonSchema) {
+    delete jsonSchema['$schema'];
+  }
+
+  return jsonSchema;
 }
 
 /**
@@ -80,6 +105,15 @@ export function transformResponse<T>(raw: RawAPIResponse): ExtractResult<T> {
       outputTokens: raw.metadata.output_tokens,
       credits: raw.metadata.credits,
       fallbackTriggered: raw.metadata.fallback_triggered,
+      confidenceScore: raw._meta.confidence_score,
+      fieldConfidence: raw._meta.field_confidence.map((fc) => ({
+        field: fc.field,
+        score: fc.score,
+        reason: fc.reason,
+        page: fc.page,
+        text: fc.text,
+      })),
+      issues: raw._meta.issues,
     },
     error: raw.error,
   };

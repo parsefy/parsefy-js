@@ -15,6 +15,10 @@ export type {
   ExtractOptions,
   ExtractResult,
   ExtractionMetadata,
+  FieldConfidence,
   APIErrorResponse,
 } from './types';
+
+// Constants
+export { DEFAULT_CONFIDENCE_THRESHOLD } from './types';
 

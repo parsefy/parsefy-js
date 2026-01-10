@@ -5,7 +5,7 @@ import type {
   ExtractResult,
   RawAPIResponse,
 } from './types';
-import { DEFAULT_BASE_URL, DEFAULT_TIMEOUT } from './types';
+import { DEFAULT_BASE_URL, DEFAULT_TIMEOUT, DEFAULT_CONFIDENCE_THRESHOLD } from './types';
 import { ParsefyError, APIError, ValidationError } from './errors';
 import {
   isNode,
@@ -17,7 +17,10 @@ import {
 } from './utils';
 
 /**
- * Parsefy client for extracting structured data from documents.
+ * Parsefy client for extracting structured data from financial documents.
+ *
+ * **Important**: All fields are **required by default**. Use `.optional()` for fields
+ * that may not appear in all documents to avoid triggering expensive fallback models.
  *
  * @example
  * ```ts
@@ -27,13 +30,24 @@ import {
  * const client = new Parsefy('pk_your_api_key');
  *
  * const schema = z.object({
- *   name: z.string(),
+ *   // REQUIRED - fallback triggered if below confidence threshold
+ *   invoice_number: z.string(),
  *   total: z.number(),
+ *
+ *   // OPTIONAL - won't trigger fallback if missing
+ *   vendor: z.string().optional(),
+ *   notes: z.string().optional(),
  * });
  *
- * const { object, error } = await client.extract({
+ * const { object, metadata, error } = await client.extract({
  *   file: './invoice.pdf',
  *   schema,
+ *   confidenceThreshold: 0.85, // default
+ * });
+ *
+ * // Check per-field confidence and evidence
+ * metadata.fieldConfidence.forEach((fc) => {
+ *   console.log(`${fc.field}: ${fc.score} - "${fc.text}"`);
  * });
  * ```
  */
@@ -96,32 +110,48 @@ export class Parsefy {
   }
 
   /**
-   * Extracts structured data from a document using the provided Zod schema.
+   * Extracts structured data from a financial document using the provided Zod schema.
    *
-   * @param options - Extraction options including file and schema.
-   * @returns Promise resolving to the extraction result with typed data.
+   * ** Billing Warning**: All fields are **required by default**. If a required field
+   * returns `null` or falls below the `confidenceThreshold`, the fallback model is triggered,
+   * which is more expensive. Use `.optional()` for fields that may not appear in all documents.
+   *
+   * @param options - Extraction options including file, schema, and confidence threshold.
+   * @returns Promise resolving to the extraction result with typed data and field-level confidence.
    *
    * @example
    * ```ts
    * const schema = z.object({
+   *   // REQUIRED - triggers fallback if confidence < threshold
    *   invoice_number: z.string().describe('The invoice number'),
-   *   total: z.number().describe('Total amount'),
+   *   total: z.number().describe('Total amount including tax'),
+   *
+   *   // OPTIONAL - won't trigger fallback if missing or low confidence
+   *   vendor: z.string().optional().describe('Vendor/supplier name'),
+   *   due_date: z.string().optional().describe('Payment due date'),
    * });
    *
    * const { object, metadata, error } = await client.extract({
    *   file: './invoice.pdf',
    *   schema,
+   *   confidenceThreshold: 0.85, // Lower = faster, Higher = more accurate
    * });
    *
    * if (!error && object) {
    *   console.log(object.invoice_number); // Fully typed!
+   *
+   *   // Access field-level confidence and evidence
+   *   console.log(`Overall confidence: ${metadata.confidenceScore}`);
+   *   metadata.fieldConfidence.forEach((fc) => {
+   *     console.log(`${fc.field}: ${fc.score} (${fc.reason}) - "${fc.text}"`);
+   *   });
    * }
    * ```
    */
   async extract<T extends z.ZodType>(
     options: ExtractOptions<T>
   ): Promise<ExtractResult<z.infer<T>>> {
-    const { file, schema } = options;
+    const { file, schema, confidenceThreshold } = options;
 
     // Convert Zod schema to JSON Schema
     const jsonSchema = zodSchemaToJsonSchema(schema);
@@ -133,6 +163,10 @@ export class Parsefy {
     const formData = new FormData();
     formData.append('file', preparedFile);
     formData.append('output_schema', JSON.stringify(jsonSchema));
+    formData.append(
+      'confidence_threshold',
+      String(confidenceThreshold ?? DEFAULT_CONFIDENCE_THRESHOLD)
+    );
 
     // Make the request with retry logic
     return this.makeRequestWithRetry<z.infer<T>>(formData);

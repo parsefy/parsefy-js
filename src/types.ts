@@ -13,6 +13,12 @@ export interface ParsefyConfig {
 }
 
 /**
+ * Default confidence threshold for extraction.
+ * Fields below this threshold on required fields will trigger the fallback model.
+ */
+export const DEFAULT_CONFIDENCE_THRESHOLD = 0.85;
+
+/**
  * Options for the extract method.
  */
 export interface ExtractOptions<T extends z.ZodType> {
@@ -20,6 +26,36 @@ export interface ExtractOptions<T extends z.ZodType> {
   file: File | Blob | Buffer | string;
   /** Zod schema defining the structure of data to extract. */
   schema: T;
+  /**
+   * Confidence threshold for extraction (0.0 to 1.0). Defaults to 0.85.
+   *
+   * If a **required** field's confidence falls below this threshold (or returns null),
+   * the fallback model is triggered for higher accuracy.
+   *
+   * **Tip**: Lower threshold = faster (accepts Tier 1 more often).
+   * Higher threshold = more accurate (triggers Tier 2 fallback more often).
+   *
+   * **Important**: Mark fields as `.optional()` in your Zod schema if they might not
+   * appear in all documents. This prevents unnecessary fallback triggers and reduces costs.
+   */
+  confidenceThreshold?: number;
+}
+
+/**
+ * Confidence details for a single extracted field.
+ * Provides evidence and explanation for each extraction.
+ */
+export interface FieldConfidence {
+  /** JSON path to the field (e.g., "$.invoice_number"). */
+  field: string;
+  /** Confidence score for this field (0.0 to 1.0). */
+  score: number;
+  /** Explanation of how the value was extracted (e.g., "Exact match", "Inferred from header"). */
+  reason: string;
+  /** Page number where the field was found. */
+  page: number;
+  /** Source text evidence from the document. */
+  text: string;
 }
 
 /**
@@ -36,6 +72,12 @@ export interface ExtractionMetadata {
   credits: number;
   /** Whether the fallback model was triggered for higher accuracy. */
   fallbackTriggered: boolean;
+  /** Overall confidence score for the extraction (0.0 to 1.0). */
+  confidenceScore: number;
+  /** Per-field confidence details with evidence and explanations. */
+  fieldConfidence: FieldConfidence[];
+  /** List of issues or warnings encountered during extraction. */
+  issues: string[];
 }
 
 /**
@@ -61,6 +103,18 @@ export interface ExtractResult<T> {
 }
 
 /**
+ * Raw field confidence as received from the API.
+ * @internal
+ */
+export interface RawFieldConfidence {
+  field: string;
+  score: number;
+  reason: string;
+  page: number;
+  text: string;
+}
+
+/**
  * Raw API response with snake_case keys (as received from the server).
  * @internal
  */
@@ -72,6 +126,11 @@ export interface RawAPIResponse {
     output_tokens: number;
     credits: number;
     fallback_triggered: boolean;
+  };
+  _meta: {
+    confidence_score: number;
+    field_confidence: RawFieldConfidence[];
+    issues: string[];
   };
   error: APIErrorResponse | null;
 }
