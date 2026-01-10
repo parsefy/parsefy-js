@@ -63,19 +63,19 @@ export interface FieldConfidence {
  */
 export interface ExtractionMetadata {
   /** Time taken to process the document in milliseconds. */
-  processingTimeMs: number;
+  processing_time_ms: number;
   /** Number of input tokens used. */
-  inputTokens: number;
+  input_tokens: number;
   /** Number of output tokens generated. */
-  outputTokens: number;
+  output_tokens: number;
   /** Number of credits consumed (1 credit = 1 page). */
   credits: number;
   /** Whether the fallback model was triggered for higher accuracy. */
-  fallbackTriggered: boolean;
+  fallback_triggered: boolean;
   /** Overall confidence score for the extraction (0.0 to 1.0). */
-  confidenceScore: number;
+  confidence_score: number;
   /** Per-field confidence details with evidence and explanations. */
-  fieldConfidence: FieldConfidence[];
+  field_confidence: FieldConfidence[];
   /** List of issues or warnings encountered during extraction. */
   issues: string[];
 }

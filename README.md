@@ -45,8 +45,8 @@ if (!error && object) {
   console.log(object.invoice_number); // Fully typed!
 
   // Access field-level confidence and evidence
-  console.log(`Overall confidence: ${metadata.confidenceScore}`);
-  metadata.fieldConfidence.forEach((fc) => {
+  console.log(`Overall confidence: ${metadata.confidence_score}`);
+  metadata.field_confidence.forEach((fc) => {
     console.log(`${fc.field}: ${fc.score} (${fc.reason}) - "${fc.text}"`);
   });
 }
@@ -111,15 +111,15 @@ interface ExtractResult<T> {
 
   // Metadata about the extraction
   metadata: {
-    processingTimeMs: number;     // Processing time in milliseconds
-    inputTokens: number;          // Input tokens used
-    outputTokens: number;         // Output tokens generated
+    processing_time_ms: number;     // Processing time in milliseconds
+    input_tokens: number;          // Input tokens used
+    output_tokens: number;         // Output tokens generated
     credits: number;              // Credits consumed (1 credit = 1 page)
-    fallbackTriggered: boolean;   // Whether fallback model was used
+    fallback_triggered: boolean;   // Whether fallback model was used
 
     // 🆕 Field-level confidence and evidence
-    confidenceScore: number;      // Overall confidence (0.0 to 1.0)
-    fieldConfidence: Array<{
+    confidence_score: number;      // Overall confidence (0.0 to 1.0)
+    field_confidence: Array<{
       field: string;              // JSON path (e.g., "$.invoice_number")
       score: number;              // Confidence score (0.0 to 1.0)
       reason: string;             // "Exact match", "Inferred from header", etc.
@@ -150,9 +150,9 @@ const { object, metadata } = await client.extract({ file, schema });
   vendor: "Acme Corp"
 }
 
-// metadata.confidenceScore: 0.94
+// metadata.confidence_score: 0.94
 
-// metadata.fieldConfidence:
+// metadata.field_confidence:
 [
   { field: "$.invoice_number", score: 0.98, reason: "Exact match", page: 1, text: "Invoice # INV-2024-0042" },
   { field: "$.date", score: 0.95, reason: "Exact match", page: 1, text: "Date: 01/15/2024" },
@@ -286,8 +286,8 @@ app.post('/extract', upload.single('document'), async (req, res) => {
 
   res.json({
     data: object,
-    confidence: metadata.confidenceScore,
-    fieldDetails: metadata.fieldConfidence,
+    confidence: metadata.confidence_score,
+    fieldDetails: metadata.field_confidence,
     error,
   });
 });
@@ -313,7 +313,7 @@ app.post('/extract', async (c) => {
 
   return c.json({
     data: object,
-    confidence: metadata.confidenceScore,
+    confidence: metadata.confidence_score,
     issues: metadata.issues,
     error,
   });
@@ -334,13 +334,13 @@ try {
   // Extraction-level errors (request succeeded, but extraction failed)
   if (error) {
     console.error(`Extraction failed: [${error.code}] ${error.message}`);
-    console.log(`Fallback triggered: ${metadata.fallbackTriggered}`);
+    console.log(`Fallback triggered: ${metadata.fallback_triggered}`);
     console.log(`Issues: ${metadata.issues.join(', ')}`);
     return;
   }
 
   // Check for low confidence fields
-  const lowConfidence = metadata.fieldConfidence.filter((fc) => fc.score < 0.80);
+  const lowConfidence = metadata.field_confidence.filter((fc) => fc.score < 0.80);
   if (lowConfidence.length > 0) {
     console.warn('Low confidence fields:', lowConfidence);
   }

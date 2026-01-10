@@ -46,7 +46,7 @@ import {
  * });
  *
  * // Check per-field confidence and evidence
- * metadata.fieldConfidence.forEach((fc) => {
+ * metadata.field_confidence.forEach((fc) => {
  *   console.log(`${fc.field}: ${fc.score} - "${fc.text}"`);
  * });
  * ```
@@ -141,8 +141,8 @@ export class Parsefy {
    *   console.log(object.invoice_number); // Fully typed!
    *
    *   // Access field-level confidence and evidence
-   *   console.log(`Overall confidence: ${metadata.confidenceScore}`);
-   *   metadata.fieldConfidence.forEach((fc) => {
+   *   console.log(`Overall confidence: ${metadata.confidence_score}`);
+   *   metadata.field_confidence.forEach((fc) => {
    *     console.log(`${fc.field}: ${fc.score} (${fc.reason}) - "${fc.text}"`);
    *   });
    * }
