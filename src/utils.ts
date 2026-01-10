@@ -94,9 +94,17 @@ export function validateFileSize(size: number): void {
 
 /**
  * Transforms snake_case API response to camelCase SDK response.
+ * Handles both old API responses (without _meta) and new API responses (with _meta).
  * @internal
  */
 export function transformResponse<T>(raw: RawAPIResponse): ExtractResult<T> {
+  // Handle legacy API responses that don't include _meta
+  const meta = raw._meta || {
+    confidence_score: 1.0,
+    field_confidence: [],
+    issues: [],
+  };
+
   return {
     object: raw.object as T | null,
     metadata: {
@@ -105,15 +113,15 @@ export function transformResponse<T>(raw: RawAPIResponse): ExtractResult<T> {
       outputTokens: raw.metadata.output_tokens,
       credits: raw.metadata.credits,
       fallbackTriggered: raw.metadata.fallback_triggered,
-      confidenceScore: raw._meta.confidence_score,
-      fieldConfidence: raw._meta.field_confidence.map((fc) => ({
+      confidenceScore: meta.confidence_score,
+      fieldConfidence: meta.field_confidence.map((fc) => ({
         field: fc.field,
         score: fc.score,
         reason: fc.reason,
         page: fc.page,
         text: fc.text,
       })),
-      issues: raw._meta.issues,
+      issues: meta.issues,
     },
     error: raw.error,
   };

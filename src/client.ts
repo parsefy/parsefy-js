@@ -229,10 +229,25 @@ export class Parsefy {
       }
 
       // Parse successful response
-      const rawResponse: RawAPIResponse = await response.json();
+      let rawResponse: RawAPIResponse;
+      try {
+        rawResponse = await response.json();
+      } catch (jsonError) {
+        throw new ParsefyError(
+          'Failed to parse API response as JSON. The API may have returned an invalid response.',
+          'PARSE_ERROR'
+        );
+      }
 
       // Transform snake_case to camelCase
-      return transformResponse<T>(rawResponse);
+      try {
+        return transformResponse<T>(rawResponse);
+      } catch (transformError) {
+        throw new ParsefyError(
+          `Failed to transform API response: ${transformError instanceof Error ? transformError.message : String(transformError)}`,
+          'TRANSFORM_ERROR'
+        );
+      }
     } catch (error) {
       clearTimeout(timeoutId);
 
@@ -249,11 +264,19 @@ export class Parsefy {
         throw error;
       }
 
-      // Handle network errors
+      // Handle fetch network errors (connection refused, DNS failure, etc.)
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new ParsefyError(
+          `Network error: Unable to connect to the Parsefy API. ${error.message}`,
+          'NETWORK_ERROR'
+        );
+      }
+
+      // Handle other TypeErrors (might be from JSON parsing or other issues)
       if (error instanceof TypeError) {
         throw new ParsefyError(
-          'Network error: Unable to connect to the Parsefy API',
-          'NETWORK_ERROR'
+          `Type error: ${error.message}. This may indicate an API response format issue.`,
+          'TYPE_ERROR'
         );
       }
 

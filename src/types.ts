@@ -127,7 +127,7 @@ export interface RawAPIResponse {
     credits: number;
     fallback_triggered: boolean;
   };
-  _meta: {
+  _meta?: {
     confidence_score: number;
     field_confidence: RawFieldConfidence[];
     issues: string[];
