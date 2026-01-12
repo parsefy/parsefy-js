@@ -6,6 +6,7 @@ import {
   type SupportedMimeType,
   type RawAPIResponse,
   type ExtractResult,
+  type VerificationStatus,
 } from './types';
 import { ValidationError } from './errors';
 
@@ -105,12 +106,10 @@ export function transformResponse<T>(raw: RawAPIResponse): ExtractResult<T> {
     issues: [],
   };
 
-  return {
+  const result: ExtractResult<T> = {
     object: raw.object as T | null,
     metadata: {
       processing_time_ms: raw.metadata.processing_time_ms,
-      input_tokens: raw.metadata.input_tokens,
-      output_tokens: raw.metadata.output_tokens,
       credits: raw.metadata.credits,
       fallback_triggered: raw.metadata.fallback_triggered,
       confidence_score: meta.confidence_score,
@@ -125,6 +124,27 @@ export function transformResponse<T>(raw: RawAPIResponse): ExtractResult<T> {
     },
     error: raw.error,
   };
+
+  // Add verification if present
+  if (raw.verification) {
+    result.verification = {
+      status: raw.verification.status as VerificationStatus,
+      checks_passed: raw.verification.checks_passed,
+      checks_failed: raw.verification.checks_failed,
+      cannot_verify_count: raw.verification.cannot_verify_count,
+      checks_run: raw.verification.checks_run.map((check) => ({
+        type: check.type,
+        status: check.status,
+        fields: check.fields,
+        passed: check.passed,
+        delta: check.delta,
+        expected: check.expected,
+        actual: check.actual,
+      })),
+    };
+  }
+
+  return result;
 }
 
 /**

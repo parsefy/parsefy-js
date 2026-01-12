@@ -16,6 +16,9 @@ export type {
   ExtractResult,
   ExtractionMetadata,
   FieldConfidence,
+  Verification,
+  VerificationStatus,
+  VerificationCheck,
   APIErrorResponse,
 } from './types';
 

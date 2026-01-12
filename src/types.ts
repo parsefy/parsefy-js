@@ -39,6 +39,14 @@ export interface ExtractOptions<T extends z.ZodType> {
    * appear in all documents. This prevents unnecessary fallback triggers and reduces costs.
    */
   confidenceThreshold?: number;
+  /**
+   * Enable math verification (includes shadow extraction). Defaults to false.
+   *
+   * When enabled, Parsefy automatically verifies mathematical consistency of numeric data
+   * (totals, subtotals, taxes, line items). If only a single verifiable field is requested,
+   * supporting fields are automatically extracted in the background for verification.
+   */
+  enableVerification?: boolean;
 }
 
 /**
@@ -64,10 +72,6 @@ export interface FieldConfidence {
 export interface ExtractionMetadata {
   /** Time taken to process the document in milliseconds. */
   processing_time_ms: number;
-  /** Number of input tokens used. */
-  input_tokens: number;
-  /** Number of output tokens generated. */
-  output_tokens: number;
   /** Number of credits consumed (1 credit = 1 page). */
   credits: number;
   /** Whether the fallback model was triggered for higher accuracy. */
@@ -78,6 +82,52 @@ export interface ExtractionMetadata {
   field_confidence: FieldConfidence[];
   /** List of issues or warnings encountered during extraction. */
   issues: string[];
+}
+
+/**
+ * Verification status values.
+ */
+export type VerificationStatus =
+  | 'PASSED'
+  | 'FAILED'
+  | 'PARTIAL'
+  | 'CANNOT_VERIFY'
+  | 'NO_RULES';
+
+/**
+ * Individual verification check result.
+ */
+export interface VerificationCheck {
+  /** Type of verification check (e.g., "HORIZONTAL_SUM", "VERTICAL_SUM"). */
+  type: string;
+  /** Status of this check. */
+  status: string;
+  /** Fields involved in this check. */
+  fields: string[];
+  /** Whether this check passed. */
+  passed: boolean;
+  /** Difference between expected and actual values. */
+  delta: number;
+  /** Expected value based on the rule. */
+  expected: number;
+  /** Actual extracted value. */
+  actual: number;
+}
+
+/**
+ * Math verification results.
+ */
+export interface Verification {
+  /** Overall verification status. */
+  status: VerificationStatus;
+  /** Number of checks that passed. */
+  checks_passed: number;
+  /** Number of checks that failed. */
+  checks_failed: number;
+  /** Number of checks that could not be verified. */
+  cannot_verify_count: number;
+  /** Detailed results for each check that was run. */
+  checks_run: VerificationCheck[];
 }
 
 /**
@@ -98,6 +148,8 @@ export interface ExtractResult<T> {
   object: T | null;
   /** Metadata about the extraction process. */
   metadata: ExtractionMetadata;
+  /** Math verification results (only present if enableVerification was true). */
+  verification?: Verification;
   /** Error details if extraction failed, or null on success. */
   error: APIErrorResponse | null;
 }
@@ -122,8 +174,6 @@ export interface RawAPIResponse {
   object: Record<string, unknown> | null;
   metadata: {
     processing_time_ms: number;
-    input_tokens: number;
-    output_tokens: number;
     credits: number;
     fallback_triggered: boolean;
   };
@@ -131,6 +181,21 @@ export interface RawAPIResponse {
     confidence_score: number;
     field_confidence: RawFieldConfidence[];
     issues: string[];
+  };
+  verification?: {
+    status: string;
+    checks_passed: number;
+    checks_failed: number;
+    cannot_verify_count: number;
+    checks_run: Array<{
+      type: string;
+      status: string;
+      fields: string[];
+      passed: boolean;
+      delta: number;
+      expected: number;
+      actual: number;
+    }>;
   };
   error: APIErrorResponse | null;
 }

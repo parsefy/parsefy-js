@@ -131,10 +131,11 @@ export class Parsefy {
    *   due_date: z.string().optional().describe('Payment due date'),
    * });
    *
-   * const { object, metadata, error } = await client.extract({
+   * const { object, metadata, verification, error } = await client.extract({
    *   file: './invoice.pdf',
    *   schema,
    *   confidenceThreshold: 0.85, // Lower = faster, Higher = more accurate
+   *   enableVerification: true, // Enable math verification
    * });
    *
    * if (!error && object) {
@@ -145,13 +146,21 @@ export class Parsefy {
    *   metadata.field_confidence.forEach((fc) => {
    *     console.log(`${fc.field}: ${fc.score} (${fc.reason}) - "${fc.text}"`);
    *   });
+   *
+   *   // Access verification results if enabled
+   *   if (verification) {
+   *     console.log(`Verification status: ${verification.status}`);
+   *     verification.checks_run.forEach((check) => {
+   *       console.log(`${check.type}: ${check.passed ? 'PASSED' : 'FAILED'}`);
+   *     });
+   *   }
    * }
    * ```
    */
   async extract<T extends z.ZodType>(
     options: ExtractOptions<T>
   ): Promise<ExtractResult<z.infer<T>>> {
-    const { file, schema, confidenceThreshold } = options;
+    const { file, schema, confidenceThreshold, enableVerification } = options;
 
     // Convert Zod schema to JSON Schema
     const jsonSchema = zodSchemaToJsonSchema(schema);
@@ -167,6 +176,11 @@ export class Parsefy {
       'confidence_threshold',
       String(confidenceThreshold ?? DEFAULT_CONFIDENCE_THRESHOLD)
     );
+    
+    // Add enable_verification if provided
+    if (enableVerification !== undefined) {
+      formData.append('enable_verification', String(enableVerification));
+    }
 
     // Make the request with retry logic
     return this.makeRequestWithRetry<z.infer<T>>(formData);

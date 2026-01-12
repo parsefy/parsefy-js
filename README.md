@@ -36,9 +36,10 @@ const schema = z.object({
   due_date: z.string().optional().describe('Payment due date'),
 });
 
-const { object, metadata, error } = await client.extract({
+const { object, metadata, verification, error } = await client.extract({
   file: './invoice.pdf',
   schema,
+  enableVerification: true, // Enable math verification
 });
 
 if (!error && object) {
@@ -49,6 +50,14 @@ if (!error && object) {
   metadata.field_confidence.forEach((fc) => {
     console.log(`${fc.field}: ${fc.score} (${fc.reason}) - "${fc.text}"`);
   });
+
+  // Access verification results if enabled
+  if (verification) {
+    console.log(`Verification status: ${verification.status}`);
+    verification.checks_run.forEach((check) => {
+      console.log(`${check.type}: ${check.passed ? 'PASSED' : 'FAILED'}`);
+    });
+  }
 }
 ```
 
@@ -102,6 +111,50 @@ const { object, metadata } = await client.extract({
 
 **Default:** `0.85`
 
+## Math Verification
+
+Enable automatic math verification to ensure extracted numeric data is mathematically consistent:
+
+```typescript
+const { object, verification } = await client.extract({
+  file: './invoice.pdf',
+  schema,
+  enableVerification: true, // Enable math verification
+});
+
+if (verification) {
+  console.log(`Verification status: ${verification.status}`);
+  console.log(`Checks passed: ${verification.checks_passed}`);
+  console.log(`Checks failed: ${verification.checks_failed}`);
+
+  verification.checks_run.forEach((check) => {
+    console.log(`${check.type}: ${check.passed ? 'PASSED' : 'FAILED'}`);
+    console.log(`  Fields: ${check.fields.join(', ')}`);
+    console.log(`  Expected: ${check.expected}, Actual: ${check.actual}`);
+    console.log(`  Delta: ${check.delta}`);
+  });
+}
+```
+
+### Verification Status Values
+
+| Status | Description |
+|--------|-------------|
+| `PASSED` | All math checks passed |
+| `FAILED` | One or more math checks failed |
+| `PARTIAL` | Some checks passed, some failed or couldn't be verified |
+| `CANNOT_VERIFY` | Required fields are missing (not a math error) |
+| `NO_RULES` | No verifiable fields detected in schema |
+
+### Supported Verification Rules
+
+- **HORIZONTAL_SUM**: Verifies `total = subtotal + tax`
+- **VERTICAL_SUM**: Verifies `subtotal = sum(line_items)`
+
+### Shadow Extraction
+
+When `enableVerification: true` and only a single verifiable field is requested (e.g., just `total`), Parsefy automatically extracts supporting fields in the background for verification, then removes them from the response.
+
 ## Response Format
 
 ```typescript
@@ -112,8 +165,6 @@ interface ExtractResult<T> {
   // Metadata about the extraction
   metadata: {
     processing_time_ms: number;     // Processing time in milliseconds
-    input_tokens: number;          // Input tokens used
-    output_tokens: number;         // Output tokens generated
     credits: number;              // Credits consumed (1 credit = 1 page)
     fallback_triggered: boolean;   // Whether fallback model was used
 
@@ -129,6 +180,23 @@ interface ExtractResult<T> {
     issues: string[];             // Warnings or anomalies detected
   };
 
+  // Math verification results (only present if enableVerification was true)
+  verification?: {
+    status: "PASSED" | "FAILED" | "PARTIAL" | "CANNOT_VERIFY" | "NO_RULES";
+    checks_passed: number;
+    checks_failed: number;
+    cannot_verify_count: number;
+    checks_run: Array<{
+      type: string;              // e.g., "HORIZONTAL_SUM", "VERTICAL_SUM"
+      status: string;
+      fields: string[];
+      passed: boolean;
+      delta: number;
+      expected: number;
+      actual: number;
+    }>;
+  };
+
   // Error details if extraction failed
   error: {
     code: string;
@@ -140,7 +208,11 @@ interface ExtractResult<T> {
 ### Example Response
 
 ```typescript
-const { object, metadata } = await client.extract({ file, schema });
+const { object, metadata, verification } = await client.extract({ 
+  file, 
+  schema,
+  enableVerification: true 
+});
 
 // object:
 {
@@ -161,6 +233,25 @@ const { object, metadata } = await client.extract({ file, schema });
 ]
 
 // metadata.issues: []
+
+// verification (only present if enableVerification was true):
+{
+  status: "PASSED",
+  checks_passed: 1,
+  checks_failed: 0,
+  cannot_verify_count: 0,
+  checks_run: [
+    {
+      type: "HORIZONTAL_SUM",
+      status: "PASSED",
+      fields: ["total", "subtotal", "tax"],
+      passed: true,
+      delta: 0.0,
+      expected: 1250.00,
+      actual: 1250.00
+    }
+  ]
+}
 ```
 
 ## Configuration
@@ -196,6 +287,7 @@ const client = new Parsefy({
 | `file` | `File \| Blob \| Buffer \| string` | required | Document to extract from |
 | `schema` | `z.ZodType` | required | Zod schema defining extraction structure |
 | `confidenceThreshold` | `number` | `0.85` | Minimum confidence before triggering fallback |
+| `enableVerification` | `boolean` | `false` | Enable math verification (includes shadow extraction) |
 
 ## Usage
 
@@ -392,6 +484,9 @@ import type {
   ExtractResult,
   ExtractionMetadata,
   FieldConfidence,
+  Verification,
+  VerificationStatus,
+  VerificationCheck,
   APIErrorResponse,
 } from 'parsefy';
 
